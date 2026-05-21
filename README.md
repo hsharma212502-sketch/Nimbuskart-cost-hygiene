@@ -3,11 +3,11 @@
 A small but realistic slice of a multi-cloud cost-hygiene practice, built against
 LocalStack so no real cloud bills move. Three deliverables in one repo:
 
-1. **Terraform** stack for a baseline VPC + web tier + log bucket + an
-   intentionally-orphaned EBS volume (`/terraform`).
-2. **Cost Janitor** — a Python script that scans for waste and a GitHub Actions
+1. Terraform stack for a baseline VPC + web tier + log bucket + an
+   itentionally-orphaned EBS volume (`/terraform`).
+2. **Cost Janitor— a Python script that scans for waste and a GitHub Actions
    workflow that runs it on every PR (`/janitor`, `.github/workflows`).
-3. **DESIGN.md** — how I'd harden, scale, and productionise this for real
+3. DESIGN.md — how I'd harden, scale, and productionise this for real
    multi-cloud (`DESIGN.md`).
 
 ## Overview
@@ -30,14 +30,13 @@ PRs that introduce drift block themselves.
 Prerequisites: Docker, Terraform ≥ 1.5, Python ≥ 3.10.
 
 ```bash
-# 1. Clone
-git clone <your-fork-url> nimbuskart-cost-hygiene
+git clone  https://github.com/hsharma212502-sketch/Nimbuskart-cost-hygiene
 cd nimbuskart-cost-hygiene
 
-# 2. Start LocalStack (foreground or detached; here, detached)
+
 docker run --rm -d -p 4566:4566 --name localstack localstack/localstack:3.5
 
-# 3. Apply the Terraform stack
+
 pip install terraform-local
 cd terraform
 tflocal init
@@ -46,7 +45,7 @@ tflocal validate
 tflocal apply -auto-approve
 cd ..
 
-# 4. Install Janitor deps and scan
+
 pip install -r janitor/requirements.txt
 cd janitor
 python janitor.py \
@@ -55,18 +54,18 @@ python janitor.py \
     --region us-east-1 \
     --output-dir ../janitor-output
 
-# 5. Look at the report
+
 cat ../janitor-output/report.md
 cat ../janitor-output/report.json | jq
 
-# 6. (Optional) destructive pass — respects Protected=true tag
+
 python janitor.py --delete --endpoint-url http://localhost:4566
 
-# 7. Run the unit tests (uses moto, no LocalStack required)
+
 pip install -r requirements-dev.txt
 python -m pytest tests/ -v
 
-# 8. Tear down
+
 docker stop localstack
 ```
 
@@ -159,21 +158,9 @@ What I'd do with one more week:
 
 ## AI usage disclosure
 
-> ⚠️ **Candidate must rewrite this section honestly before submitting.** The
-> brief explicitly asks for tool names, one thing the AI got wrong, and one
-> section you wrote by hand. Below is a template — replace the bracketed
-> placeholders with your own answers.
+- **Tools used(AI):** Claude (Opus) for the Terraform module skeleton
+  and the Janitor's detector loops
+- **One thing the AI got wrong:** one thing AI commonly suggests badly is using unnecessary complexity instead of demonstrating core AWS emulation properly.
+- **One section I wrote without AI help:** Just to be fair from my side, I used AI assistance in almost every section of the project to improve efficiency and streamline the work process.
 
-- **Tools used:** [e.g., Claude (Sonnet/Opus) for the Terraform module skeleton
-  and the Janitor's detector loops; ChatGPT to debug a moto pagination quirk;
-  Copilot for small completions in the workflow YAML.]
-- **One thing the AI got wrong:** [e.g., it initially suggested using
-  `boto3.resource('ec2').volumes.filter(...)` which doesn't paginate cleanly
-  and silently drops past the first 1000 results; I switched to
-  `client.get_paginator('describe_volumes')` after noticing the discrepancy on
-  a stress test. Replace with your own real example.]
-- **One section I wrote without AI help:** [e.g., the `parse_state_transition_age`
-  helper and its tests — I wanted to be sure I owned the regex and the failure
-  modes around malformed reason strings. Replace with your own.]
 
-See Section 7 of the brief for what to cover here.
