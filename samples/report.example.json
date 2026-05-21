@@ -1,0 +1,45 @@
+{
+  "scan_timestamp": "2026-05-21T11:13:32Z",
+  "account_id": "123456789012",
+  "region": "us-east-1",
+  "mode": "dry-run",
+  "summary": {
+    "total_orphans": 3,
+    "estimated_monthly_waste_usd": 12.04
+  },
+  "findings": [
+    {
+      "resource_id": "vol-b99247f8",
+      "resource_type": "ebs_volume",
+      "reason": "unattached; missing_tags=Project,Environment,Owner",
+      "age_days": 0,
+      "estimated_monthly_cost_usd": 0.8,
+      "tags": {},
+      "suggested_action": "delete",
+      "safe_to_auto_delete": false,
+      "region": "us-east-1"
+    },
+    {
+      "resource_id": "eipalloc-4ecd22fe",
+      "resource_type": "elastic_ip",
+      "reason": "unassociated; missing_tags=Project,Environment,Owner",
+      "age_days": null,
+      "estimated_monthly_cost_usd": 3.65,
+      "tags": {},
+      "suggested_action": "release",
+      "safe_to_auto_delete": true,
+      "region": "us-east-1"
+    },
+    {
+      "resource_id": "i-50be2d111b38f2999",
+      "resource_type": "ec2_instance",
+      "reason": "missing_required_tags=Project,Environment,Owner",
+      "age_days": 0,
+      "estimated_monthly_cost_usd": 7.59,
+      "tags": {},
+      "suggested_action": "add_tags",
+      "safe_to_auto_delete": false,
+      "region": "us-east-1"
+    }
+  ]
+}
