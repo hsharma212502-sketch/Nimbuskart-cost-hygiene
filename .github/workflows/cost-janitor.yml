@@ -1,0 +1,129 @@
+name: Cost Janitor
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write   # required to post the PR comment
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+
+    services:
+      localstack:
+        image: localstack/localstack:3.5
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: ec2,s3,iam,sts
+          DEBUG: "0"
+        options: >-
+          --health-cmd="curl -fsS http://localhost:4566/_localstack/health || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Install Python tooling
+        run: |
+          pip install -r janitor/requirements.txt
+          pip install terraform-local awscli-local
+
+      - name: Wait for LocalStack to be healthy
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:4566/_localstack/health > /tmp/h.json 2>/dev/null; then
+              if grep -q '"running"\|"available"' /tmp/h.json; then
+                echo "LocalStack is ready."
+                cat /tmp/h.json
+                exit 0
+              fi
+            fi
+            echo "Waiting for LocalStack ($i/30)..."
+            sleep 4
+          done
+          echo "LocalStack did not become ready in time."
+          curl -v http://localhost:4566/_localstack/health || true
+          exit 1
+
+      - name: Terraform format check
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init & validate
+        working-directory: terraform
+        run: |
+          tflocal init -input=false
+          tflocal validate
+
+      - name: Terraform apply
+        working-directory: terraform
+        run: tflocal apply -auto-approve -input=false
+
+      - name: Run Cost Janitor (dry-run)
+        id: janitor
+        continue-on-error: true
+        working-directory: janitor
+        run: |
+          mkdir -p ../janitor-output
+          python janitor.py \
+            --dry-run \
+            --endpoint-url http://localhost:4566 \
+            --region us-east-1 \
+            --output-dir ../janitor-output
+
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: janitor-report
+          path: janitor-output/
+          if-no-files-found: warn
+
+      - name: Post report as PR comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const p = 'janitor-output/report.md';
+            if (!fs.existsSync(p)) {
+              core.info('No report.md to post.');
+              return;
+            }
+            const body = fs.readFileSync(p, 'utf8');
+            // Only post if there are findings (the script writes a "no orphans"
+            // line otherwise). The brief says: comment IF orphans found.
+            if (body.includes('No orphans found')) {
+              core.info('No orphans found; skipping PR comment.');
+              return;
+            }
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body,
+            });
+
+      - name: Fail the job if orphans were detected
+        if: steps.janitor.outcome == 'failure'
+        run: |
+          echo "Cost Janitor found orphan resources. See the uploaded artifact and PR comment for details."
+          exit 1
