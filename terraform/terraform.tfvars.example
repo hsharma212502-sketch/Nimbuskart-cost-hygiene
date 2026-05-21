@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and edit as needed.
+# Do NOT commit terraform.tfvars (.gitignore'd).
+
+# project     = "nimbuskart"
+# environment = "staging"
+# owner       = "platform-team"
+
+# Keep SSH locked down:
+# ssh_ingress_cidrs = ["10.0.0.0/8"]
+
+# Or, for a deliberately-permissive review run:
+# ssh_ingress_cidrs = ["0.0.0.0/0"]
