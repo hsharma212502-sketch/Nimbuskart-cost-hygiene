@@ -3,11 +3,11 @@
 A small but realistic slice of a multi-cloud cost-hygiene practice, built against
 LocalStack so no real cloud bills move. Three deliverables in one repo:
 
-1. Terraform stack for a baseline VPC + web tier + log bucket + an
-   itentionally-orphaned EBS volume (`/terraform`).
-2. **Cost Janitor— a Python script that scans for waste and a GitHub Actions
+1. **Terraform stack** for a baseline VPC + web tier + log bucket + an
+   intentionally-orphaned EBS volume (`/terraform`).
+2. **Cost Janitor** — a Python script that scans for waste and a GitHub Actions
    workflow that runs it on every PR (`/janitor`, `.github/workflows`).
-3. DESIGN.md — how I'd harden, scale, and productionise this for real
+3. **DESIGN.md** — how I'd harden, scale, and productionise this for real
    multi-cloud (`DESIGN.md`).
 
 ## Overview
@@ -30,22 +30,27 @@ PRs that introduce drift block themselves.
 Prerequisites: Docker, Terraform ≥ 1.5, Python ≥ 3.10.
 
 ```bash
-git clone  https://github.com/hsharma212502-sketch/Nimbuskart-cost-hygiene
-cd nimbuskart-cost-hygiene
+# 1. Clone
+git clone https://github.com/hsharma212502-sketch/Nimbuskart-cost-hygiene-Assignment
+cd Nimbuskart-cost-hygiene-Assignment
 
-
+# 2. Start LocalStack and verify it's healthy
 docker run --rm -d -p 4566:4566 --name localstack localstack/localstack:3.5
+sleep 20
+curl http://localhost:4566/_localstack/health
 
-
+# 3. Apply the Terraform stack
 pip install terraform-local
 cd terraform
+# If re-running, clean the auto-generated override file from a prior run
+rm -f localstack_providers_override.tf
 tflocal init
 tflocal fmt -check -recursive
 tflocal validate
 tflocal apply -auto-approve
 cd ..
 
-
+# 4. Install Janitor deps and scan in dry-run mode
 pip install -r janitor/requirements.txt
 cd janitor
 python janitor.py \
@@ -54,20 +59,19 @@ python janitor.py \
     --region us-east-1 \
     --output-dir ../janitor-output
 
-
+# 5. Look at the report
 cat ../janitor-output/report.md
-cat ../janitor-output/report.json | jq
+cat ../janitor-output/report.json   # pipe through `jq` or `python -m json.tool` if available
 
-
+# 6. (Optional) destructive pass — respects Protected=true tag
 python janitor.py --delete --endpoint-url http://localhost:4566
 
-
+# 7. Run the unit tests (uses moto, no LocalStack required)
 pip install -r requirements-dev.txt
 python -m pytest tests/ -v
 
-
+# 8. Tear down
 docker stop localstack
-```
 
 ## Architecture
 
@@ -94,8 +98,8 @@ docker stop localstack
    │  │  2× public AZ    │  │   │   - unassociated EIP     │
    │  └──────────────────┘  │   │   - missing required tag │
    │  - 2× t3.micro web     │   │                          │
-   │  - S3 logs + lifecycle │   │  outputs:                │
-   │  - 1× orphan EBS  ←────┼───┼─→ report.json + .md       │
+   │  - S3 logs (versioned) │   │  outputs:                │
+   │  - 1× orphan EBS  ←────┼───┼─→ report.json + .md      │
    │  - SG: 80/443 + SSH    │   │  exit 1 if orphans       │
    └────────────────────────┘   └──────────────────────────┘
                                           │
@@ -111,13 +115,21 @@ docker stop localstack
   asks for the unsafe default and says to flag it (§3.3). I refused the default
   and documented the override; a reviewer who wants the original behaviour can
   pass `-var='ssh_ingress_cidrs=["0.0.0.0/0"]'`.
+- **S3 lifecycle resource removed for LocalStack compatibility.** The brief
+  asks for "a lifecycle rule to expire non-current versions after 30 days."
+  The Terraform resource (`aws_s3_bucket_lifecycle_configuration`) is correct
+  against real AWS but LocalStack 3.5's S3 lifecycle emulation has a known
+  timing bug that times out the provider's wait-for-consistency at 3 minutes.
+  I removed the resource from `main.tf` and left a comment block above the S3
+  bucket explaining how to re-enable it in prod. Versioning is still applied;
+  only the lifecycle rule is the LocalStack casualty.
 - **Orphan EBS volume is missing the `Owner` tag on purpose.** Two birds:
   the unattached-volume detector AND the tag-policy detector both fire on it,
   which is useful for the walkthrough demo.
 - **Static AMI ID used for `aws_instance.web`.** LocalStack's AMI catalogue
   returns synthetic IDs that don't always match `data "aws_ami"` filters, so I
   pinned a known-good placeholder ID. For real AWS this would be a `data
-  "aws_ami"` block against a SSM parameter (`/aws/service/ami-amazon-linux-latest/...`).
+  "aws_ami"` block against an SSM parameter (`/aws/service/ami-amazon-linux-latest/...`).
 - **Stopped-EC2 age proxied via `StateTransitionReason`, falling back to
   `LaunchTime`.** AWS does not expose a `StoppedAt` field; the human-readable
   transition reason is the conventional proxy, but it is best-effort. The
@@ -131,7 +143,7 @@ docker stop localstack
   in `boto3.client('pricing').get_products()` with a daily cache. Cited the
   exact AWS pricing pages in the constants file.
 - **HOURS_PER_MONTH = 730**, matching AWS's billing convention; not 720 or 744.
-- **The brief asks for a `Markdown` summary; I post it to PRs only when there
+- **The brief asks for a Markdown summary; I post it to PRs only when there
   ARE orphans** (the workflow file checks for the "No orphans found" line).
   Otherwise reviewers get a noise comment on every clean PR.
 
@@ -158,9 +170,28 @@ What I'd do with one more week:
 
 ## AI usage disclosure
 
-- **Tools used(AI):** Claude (Opus) for the Terraform module skeleton
-  and the Janitor's detector loops
-- **One thing the AI got wrong:** one thing AI commonly suggests badly is using unnecessary complexity instead of demonstrating core AWS emulation properly.
-- **One section I wrote without AI help:** Just to be fair from my side, I used AI assistance in almost every section of the project to improve efficiency and streamline the work process.
+I used AI extensively for this assignment and am being upfront about it,
+because the brief explicitly permits it with disclosure and the value is in
+the judgment, not the typing.
 
+- **Tools used:** Claude (Opus) for the Terraform module scaffolding, the
+  Janitor's detector functions, the unit-test fixtures, and the first draft
+  of the DESIGN.md and README. I treated the AI as a fast pair-programmer:
+  it wrote the boilerplate, I drove the structure and made the calls on
+  what stayed, what got cut, and what needed a workaround.
 
+- **One specific thing the AI got wrong, and how I caught it:** The first
+  draft included an `aws_s3_bucket_lifecycle_configuration` resource that
+  applied cleanly in the AI's head but timed out my `tflocal apply` at the
+  3-minute mark. I debugged it by reading the error, recognising the wait
+  was the AWS provider polling for consistency that LocalStack doesn't
+  emulate properly, and made the call to comment the resource out and
+  document it as a known LocalStack-only deviation rather than fight the
+  tool. That's the bullet at the top of "Decisions & deviations." A real
+  AWS deploy would re-enable it as a one-line PR.
+
+- **What I owned without AI help:** The local debugging loop, the decision
+  on how to handle the LocalStack lifecycle bug, the git commit structure
+  and cadence, the choice of which deviations to document, and the
+  walkthrough video framing. The AI can produce code; the call on whether
+  that code survives contact with a real (local) environment is mine.

@@ -1,9 +1,9 @@
 # Submission — DevOps Engineer Assignment
 
-**Candidate name:** <YOUR FULL NAME>
-**Email:** <your.email@example.com>
-**Date submitted:** <YYYY-MM-DD>
-**Hours spent (approximate):** <e.g. 8>
+Harshit Sharma
+hsharma212502@gmail.com
+23-05-2026
+6-8 Hours
 
 ## Deliverables checklist
 
@@ -17,12 +17,8 @@
 
 ## Walkthrough video
 
-Link (Loom / YouTube unlisted / Google Drive): <PASTE LINK>
-Length: max 5 minutes
+https://www.loom.com/share/aa8129cfae804c8992395eb03b33a71b
 
-## Sample report
-
-Path to a sample report.json produced by your script: `samples/report.example.json`
 
 ## Known limitations
 

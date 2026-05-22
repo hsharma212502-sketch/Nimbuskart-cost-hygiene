@@ -1,8 +1,8 @@
 # Walkthrough
 
-**Video:** <PASTE LOOM / YOUTUBE UNLISTED / GOOGLE DRIVE LINK HERE>
+https://www.loom.com/share/aa8129cfae804c8992395eb03b33a71b
 
-**Length:** ≤ 5 minutes
+
 
 ## Suggested script (the brief requires all four beats)
 
